@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datacleaner"
+version = "1.0.0"
+description = "A defensive command-line tool for cleaning messy CSV files."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "smafnan", email = "smafnan5@gmail.com" }]
+keywords = ["data-cleaning", "csv", "pandas", "cli", "etl"]
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+# Installs a `datacleaner` command that calls datacleaner.cli:main
+datacleaner = "datacleaner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

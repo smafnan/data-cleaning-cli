@@ -1,0 +1,4 @@
+# Runtime dependencies. For development install the package with the dev extras:
+#   pip install -e ".[dev]"
+pandas>=2.0
+numpy>=1.24

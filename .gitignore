@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated cleaning artifacts (keep the sample input, ignore outputs)
+*.clean.csv
+sample_data/*.report.md
+sample_data/*.report.json

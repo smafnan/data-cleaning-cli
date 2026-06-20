@@ -1,0 +1,10 @@
+Customer ID , Full Name ,Signup Date,Age,Spend ($),Active?,Notes
+1001,  Alice Smith ,2021-03-01,34,1200.50,yes,VIP
+1001,Alice Smith,2021-03-01,34,1200.50,yes,VIP
+1002,Bob Jones,2021/04/15,,NA,no,
+1003,Carol White,15-05-2021,29,n/a,YES,
+1004, Dave Brown,2021-06-20,41,2999.00,No,churn risk
+1005,Eve Black,,52,0,yes,-
+1005,Eve Black,,52,0,yes,-
+1006,Frank Green,2021-08-08,unknown,750.25,y,
+1007,,2021-09-09,38,450,n,new

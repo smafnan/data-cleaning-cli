@@ -1,0 +1,8 @@
+customer_id,full_name,signup_date,age,spend,active,notes
+1001,Alice Smith,2021-03-01,34,1200.5,True,VIP
+1002,Bob Jones,,38,750.25,False,
+1003,Carol White,,29,750.25,True,
+1004,Dave Brown,2021-06-20,41,2999.0,False,churn risk
+1005,Eve Black,,52,0.0,True,
+1006,Frank Green,2021-08-08,38,750.25,True,
+1007,,2021-09-09,38,450.0,False,new
