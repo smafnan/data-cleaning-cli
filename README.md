@@ -20,11 +20,10 @@ Design principles:
 - **Pure core, thin shell.** All cleaning lives in `clean_dataframe()`, which does no
   I/O — the CLI only parses args and reads/writes files. This makes the logic
   trivially unit-testable and reusable from notebooks.
-- **Defensive coercion.** A column is only converted to a new numeric type if the
-  conversion introduces no new missing values. A column that merely *looks* numeric
-  is left untouched rather than silently corrupted. (Note: this guarantee is **not**
-  currently enforced for forced `--datetime-cols` coercion — see
-  [Limitations](#limitations).)
+- **Defensive coercion.** A column is only converted to a new numeric or datetime
+  type if the conversion introduces no new missing values. A column that merely
+  *looks* numeric, or a forced `--datetime-cols` column whose values don't all
+  share one date format, is left untouched rather than silently corrupted.
 - **Observable.** Every run returns a `CleaningReport` (rows/cols before & after,
   renamed columns, inferred types, per-column missing counts, duplicates removed,
   cells imputed).
@@ -119,8 +118,9 @@ python -m datacleaner clean sample_data/messy.csv
 3. **Standardize missing markers** — `""`, `NA`, `n/a`, `null`, `-`, `?`,
    `unknown`, … all become real `NaN`.
 4. **Infer & coerce types** — numeric (`Int64`/`float64`), `boolean`
-   (yes/no/true/false/1/0), and datetime — only when safe (see Limitations for the
-   one place "safe" isn't currently enforced).
+   (yes/no/true/false/1/0), and datetime — only when safe, i.e. when the coercion
+   introduces zero new missing values (applies to both auto-inferred types and
+   forced `--datetime-cols` columns).
 5. **Drop sparse columns** (optional, via `--drop-threshold`).
 6. **Handle missing values** — `keep` / `drop` / `mean` / `median` / `mode` /
    `constant`.
@@ -146,7 +146,6 @@ this report (verified by re-running it):
 
 ## Inferred types
 - customer_id -> Int64
-- signup_date -> datetime64[ns]
 - age         -> Int64
 - spend       -> float64
 - active      -> boolean
@@ -154,12 +153,16 @@ this report (verified by re-running it):
 ## Missing values per column
 | Column       | Before | After |
 | ------------ | -----: | ----: |
-| signup_date  |      2 |     3 |
+| signup_date  |      2 |     1 |
 ```
 
-Note the last line: `signup_date` goes from 2 missing values to *3* — this is the
-forced-datetime-coercion limitation described below, left visible here rather than
-edited out.
+Note that `signup_date` is *not* listed under "Inferred types": `messy.csv` mixes
+date styles (`2021-03-01`, `2021/04/15`, `15-05-2021`, …), so forcing the whole
+column to `datetime64` would turn some valid-but-differently-formatted dates into
+`NaT`. The datetime guard (mirroring the numeric-coercion guard) detects that and
+leaves the column as plain strings instead — the `signup_date` row above only
+drops from 2 missing to 1 because a duplicate row (also missing that field) was
+removed, not because of any lossy coercion.
 
 ## Project structure
 
@@ -187,19 +190,22 @@ data-cleaning-cli/
 - **Config and report are plain dataclasses**, not hidden globals or a dict soup —
   a run is fully reproducible from one `CleaningConfig`, and a `CleaningReport` is
   trivially serializable to JSON/Markdown.
-- **Numeric coercion is guarded**; a column is only promoted to `Int64`/`float64` if
-  doing so creates zero new missing values versus the pre-coercion column.
+- **Numeric and forced-datetime coercion are both guarded**; a column is only
+  promoted to `Int64`/`float64`/`datetime64[ns]` if doing so creates zero new
+  missing values versus the pre-coercion column.
 
 ## Limitations
 
-- **Forced datetime coercion (`--datetime-cols`) is not guarded the way numeric
-  coercion is.** `pd.to_datetime` infers a single date format from the column's
-  first value and applies it to every row, so a column mixing date styles (e.g.
-  `2021/04/15` and `15-05-2021`) can silently turn valid-but-differently-formatted
-  dates into `NaT`. This is demonstrated, not hidden, in the "Example output"
-  section above (`signup_date` missing count rises from 2 to 3). Treat
-  `--datetime-cols` results as needing a manual spot-check on any column with
-  inconsistent date formatting.
+- **Forced datetime coercion (`--datetime-cols`) is guarded like numeric
+  coercion, not more clever than it.** `pd.to_datetime` infers a single date
+  format from the column and applies it to every row; if that would turn any
+  valid-but-differently-formatted value into a *new* `NaT`, the guard refuses
+  the whole-column coercion and leaves it as strings rather than silently
+  losing data (see the "Example output" section above, where `signup_date` is
+  left uncoerced for exactly this reason). This is safe but coarse: the column
+  is either fully coerced or not coerced at all, never partially. If you need a
+  mixed-format date column actually parsed, normalize its formatting upstream
+  first.
 - **`--fill-constant` is always passed through as a string.** Using
   `--missing constant --fill-constant 0` on a numeric column will not fill it with
   the number `0`; pandas rejects the typed fill and the code falls back to
@@ -208,13 +214,11 @@ data-cleaning-cli/
   dtype afterward if you must use `constant`.
 - **No streaming / chunking.** The whole CSV is loaded into memory via pandas; very
   large files are not handled specially.
-- **No CI.** The test suite (20 tests, `pytest -q`) is complete but only runs
+- **No CI.** The test suite (22 tests, `pytest -q`) is complete but only runs
   locally today.
 
 ## Roadmap
 
-- Guard forced datetime coercion the same way numeric coercion is guarded (or
-  explicitly report cells lost to coercion instead of silently accepting them).
 - Coerce `--fill-constant` to a number when possible instead of always treating it
   as a string.
 - Add a GitHub Actions workflow to run `pytest` on push/PR.
@@ -225,7 +229,7 @@ data-cleaning-cli/
 ## Running the tests
 
 ```bash
-pytest -q          # 20 tests covering each pipeline step + the CLI
+pytest -q          # 22 tests covering each pipeline step + the CLI
 ```
 
 ## License

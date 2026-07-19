@@ -21,7 +21,6 @@
 ## Inferred types
 
 - `customer_id` -> `Int64`
-- `signup_date` -> `datetime64[ns]`
 - `age` -> `Int64`
 - `spend` -> `float64`
 - `active` -> `boolean`
@@ -31,7 +30,7 @@
 | Column | Before | After |
 | --- | ---: | ---: |
 | `full_name` | 1 | 1 |
-| `signup_date` | 2 | 3 |
+| `signup_date` | 2 | 1 |
 | `age` | 2 | 0 |
 | `spend` | 2 | 0 |
 | `notes` | 5 | 4 |

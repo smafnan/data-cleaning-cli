@@ -73,6 +73,31 @@ def test_forced_datetime_column():
     assert pd.api.types.is_datetime64_any_dtype(cleaned["d"])
 
 
+def test_forced_datetime_column_preserves_existing_missing_values():
+    # A forced datetime column that already had a gap should still coerce
+    # cleanly when every non-missing value parses under one format.
+    df = pd.DataFrame({"d": ["2021-01-01", "", "2021-03-03"]})
+    cfg = CleaningConfig(datetime_columns=("d",), drop_duplicates=False)
+    cleaned, report = clean_dataframe(df, cfg)
+    assert report.coerced_types["d"] == "datetime64[ns]"
+    assert cleaned["d"].isna().sum() == 1
+
+
+def test_forced_datetime_coercion_guards_against_new_missing_values():
+    # "15-05-2021" cannot be parsed under the format pandas infers from the
+    # first value ("2021-03-01"), so naive coercion would silently turn it
+    # into NaT -> a *new* missing value. The guard must refuse the coercion,
+    # mirroring the numeric path's "no new NaNs" rule, instead of losing data.
+    df = pd.DataFrame({"d": ["2021-03-01", "15-05-2021"]})
+    cfg = CleaningConfig(datetime_columns=("d",), drop_duplicates=False)
+    cleaned, report = clean_dataframe(df, cfg)
+    assert "d" not in report.coerced_types
+    assert cleaned["d"].tolist() == ["2021-03-01", "15-05-2021"]
+    assert cleaned["d"].isna().sum() == 0
+    # missing_before/missing_after must agree: no new NaNs were introduced.
+    assert report.missing_before["d"] == report.missing_after["d"] == 0
+
+
 def test_drops_duplicate_rows():
     df = pd.DataFrame({"a": ["1", "1", "2"], "b": ["x", "x", "y"]})
     cleaned, report = clean_dataframe(df, CleaningConfig())

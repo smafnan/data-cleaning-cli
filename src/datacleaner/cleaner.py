@@ -249,11 +249,20 @@ def _coerce_types(
         original = df[col].astype(object)
         already_missing = original.isna()
 
-        # 1) Forced datetime columns take priority.
+        # 1) Forced datetime columns take priority. Guarded exactly like the
+        #    numeric path below: we only commit the coercion if it introduces
+        #    no *new* NaNs. `pd.to_datetime` infers a single format from the
+        #    column and applies it to every row, so a column mixing date
+        #    styles (e.g. "2021/04/15" and "15-05-2021") would otherwise
+        #    silently turn valid-but-differently-formatted dates into NaT.
         if col in forced_dt:
             parsed = pd.to_datetime(original, errors="coerce")
-            df[col] = parsed
-            report.coerced_types[col] = "datetime64[ns]"
+            if parsed.isna().equals(already_missing) and not parsed.isna().all():
+                df[col] = parsed
+                report.coerced_types[col] = "datetime64[ns]"
+            # else: leave the column untouched, same as the numeric guard —
+            # no entry is added to coerced_types, and the column is retried
+            # against no further coercions (it was explicitly forced).
             continue
 
         # 2) Try numeric. Succeeds only if no *new* NaNs are created.
