@@ -139,6 +139,37 @@ def test_missing_strategy_constant():
     assert cleaned["name"].tolist() == ["a", "UNKNOWN", "c"]
 
 
+def test_missing_strategy_constant_on_numeric_column_stays_numeric():
+    # The CLI always hands `fill_constant` through as a string (e.g. "0"),
+    # even for a numeric column. That string must be coerced to the column's
+    # numeric dtype rather than written verbatim, which would silently
+    # downgrade the whole column to object dtype with mixed native/string
+    # values.
+    df = pd.DataFrame({"score": ["1", "", "3"]})
+    cfg = CleaningConfig(
+        missing_strategy="constant", fill_constant="0", drop_duplicates=False
+    )
+    cleaned, report = clean_dataframe(df, cfg)
+    assert pd.api.types.is_numeric_dtype(cleaned["score"])
+    assert cleaned["score"].tolist() == [1, 0, 3]
+    assert report.fill_constant_incompatible == []
+
+
+def test_missing_strategy_constant_incompatible_with_numeric_column_is_reported():
+    # A constant that cannot be interpreted as a number for a numeric column
+    # must not corrupt the column's dtype; it's refused and recorded loudly.
+    df = pd.DataFrame({"score": ["1", "", "3"]})
+    cfg = CleaningConfig(
+        missing_strategy="constant",
+        fill_constant="not-a-number",
+        drop_duplicates=False,
+    )
+    cleaned, report = clean_dataframe(df, cfg)
+    assert pd.api.types.is_numeric_dtype(cleaned["score"])
+    assert cleaned["score"].isna().sum() == 1
+    assert report.fill_constant_incompatible == ["score"]
+
+
 def test_drop_threshold_removes_sparse_column():
     df = pd.DataFrame({
         "keep": ["1", "2", "3", "4"],

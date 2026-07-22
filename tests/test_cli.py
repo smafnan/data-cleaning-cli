@@ -56,3 +56,24 @@ def test_cli_default_output_path(tmp_path: Path):
     code = main(["clean", str(src), "--report", str(tmp_path / "r.md")])
     assert code == 0
     assert (tmp_path / "data.clean.csv").exists()
+
+
+def test_cli_fill_constant_on_numeric_column_stays_numeric(tmp_path: Path):
+    # argparse hands --fill-constant through as a plain string (default "0").
+    # Filling a numeric column ("Age") with it must not downgrade the column
+    # to object dtype with a mix of ints and the literal string "0".
+    src = tmp_path / "in.csv"
+    out = tmp_path / "out.csv"
+    _write_messy_csv(src)
+
+    code = main([
+        "clean", str(src), "-o", str(out), "--missing", "constant",
+        "--fill-constant", "0",
+    ])
+    assert code == 0
+
+    cleaned = pd.read_csv(out)
+    assert pd.api.types.is_integer_dtype(cleaned["age"])
+    # The duplicate Alice row is dropped first, leaving Alice/Bob/Carol; Bob's
+    # and Carol's missing ages are both filled with the numeric constant 0.
+    assert cleaned["age"].tolist() == [30, 0, 0]

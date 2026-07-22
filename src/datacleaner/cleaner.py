@@ -135,6 +135,7 @@ class CleaningReport:
     duplicates_removed: int = 0
     rows_dropped_missing: int = 0
     cells_filled: int = 0
+    fill_constant_incompatible: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         """Return a plain-dict view, suitable for ``json.dump``."""
@@ -151,6 +152,7 @@ class CleaningReport:
             "duplicates_removed": self.duplicates_removed,
             "rows_dropped_missing": self.rows_dropped_missing,
             "cells_filled": self.cells_filled,
+            "fill_constant_incompatible": self.fill_constant_incompatible,
         }
 
 
@@ -355,13 +357,28 @@ def _handle_missing(
             continue
         series = df[col]
         if strategy == "constant":
+            fill_value = config.fill_constant
+            if pd.api.types.is_numeric_dtype(series):
+                # Guarded like the numeric/datetime coercions above: the
+                # constant (e.g. the CLI's "0" string) is coerced to match the
+                # column's numeric dtype instead of being written verbatim,
+                # which would silently downgrade the whole column to object
+                # dtype with mixed native/string values.
+                numeric_value = pd.to_numeric(fill_value, errors="coerce")
+                if pd.isna(numeric_value):
+                    # The constant can't be interpreted as a number for this
+                    # numeric column. Refuse the fill and record it loudly
+                    # instead of silently corrupting the column's dtype.
+                    report.fill_constant_incompatible.append(col)
+                    continue
+                fill_value = numeric_value
             try:
-                df[col] = series.fillna(config.fill_constant)
+                df[col] = series.fillna(fill_value)
             except (TypeError, ValueError):
                 # The constant isn't compatible with this column's dtype
                 # (e.g. filling 0 into a boolean/datetime column). Fall back to
                 # an object column so the fill always succeeds without crashing.
-                df[col] = series.astype(object).fillna(config.fill_constant)
+                df[col] = series.astype(object).fillna(fill_value)
         elif strategy in ("mean", "median"):
             # Only impute numeric columns. We deliberately leave text/categorical
             # columns missing rather than fabricating a value: mode-imputing a

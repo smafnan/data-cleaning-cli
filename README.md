@@ -102,7 +102,7 @@ python -m datacleaner clean sample_data/messy.csv
 | `-o, --output PATH` | Output CSV path (default `<input>.clean.csv`). |
 | `--report PATH` | Report path. `.json` → JSON, anything else → Markdown. Omit to print to stderr. |
 | `--missing {keep,drop,mean,median,mode,constant}` | Missing-value strategy (default `keep`). |
-| `--fill-constant VALUE` | Value used with `--missing constant`. Passed through as a string — see [Limitations](#limitations). |
+| `--fill-constant VALUE` | Value used with `--missing constant`. Coerced to the target column's numeric dtype when that column is numeric; if it can't be interpreted as a number, the fill is skipped for that column and reported under `fill_constant_incompatible`. |
 | `--drop-threshold FLOAT` | Drop columns whose missing fraction exceeds this (0–1). |
 | `--datetime-cols COL ...` | Columns to force-parse as datetimes. |
 | `--dup-subset COL ...` | Columns that define a duplicate (default: whole row). |
@@ -173,7 +173,8 @@ data-cleaning-cli/
 │   ├── __main__.py      # `python -m datacleaner`
 │   ├── cli.py           # argparse + file I/O (the thin shell)
 │   ├── cleaner.py       # the pure cleaning pipeline (the core)
-│   └── report.py        # JSON / Markdown rendering of a report
+│   ├── report.py        # JSON / Markdown rendering of a report
+│   └── py.typed         # PEP 561 marker: the package ships type hints
 ├── tests/
 │   ├── test_cleaner.py  # unit tests for each pipeline step
 │   └── test_cli.py      # end-to-end CLI tests
@@ -193,6 +194,12 @@ data-cleaning-cli/
 - **Numeric and forced-datetime coercion are both guarded**; a column is only
   promoted to `Int64`/`float64`/`datetime64[ns]` if doing so creates zero new
   missing values versus the pre-coercion column.
+- **`--fill-constant` respects the target column's dtype.** Filling a numeric
+  column coerces the constant to a number instead of writing the raw string,
+  which would otherwise silently downgrade the whole column to `object` dtype
+  with mixed native/string values. If the constant can't be interpreted as a
+  number, the fill is skipped for that column and recorded in
+  `CleaningReport.fill_constant_incompatible` rather than corrupting the dtype.
 
 ## Limitations
 
@@ -206,30 +213,20 @@ data-cleaning-cli/
   is either fully coerced or not coerced at all, never partially. If you need a
   mixed-format date column actually parsed, normalize its formatting upstream
   first.
-- **`--fill-constant` is always passed through as a string.** Using
-  `--missing constant --fill-constant 0` on a numeric column will not fill it with
-  the number `0`; pandas rejects the typed fill and the code falls back to
-  converting the whole column to `object` dtype with mixed native/string values.
-  Prefer `--missing mean`/`median`/`mode` for numeric columns, or fix the column's
-  dtype afterward if you must use `constant`.
 - **No streaming / chunking.** The whole CSV is loaded into memory via pandas; very
   large files are not handled specially.
-- **No CI.** The test suite (22 tests, `pytest -q`) is complete but only runs
+- **No CI.** The test suite (25 tests, `pytest -q`) is complete but only runs
   locally today.
 
 ## Roadmap
 
-- Coerce `--fill-constant` to a number when possible instead of always treating it
-  as a string.
-- Add a GitHub Actions workflow to run `pytest` on push/PR.
-- Ship a `py.typed` marker for downstream type-checking.
 - Surface silent fallbacks (e.g. `--dup-subset` columns that no longer exist) in
   `CleaningReport` instead of only in code comments.
 
 ## Running the tests
 
 ```bash
-pytest -q          # 22 tests covering each pipeline step + the CLI
+pytest -q          # 25 tests covering each pipeline step + the CLI
 ```
 
 ## License

@@ -50,6 +50,11 @@ def to_markdown(report: CleaningReport) -> str:
         lines += [f"- `{c}` -> `{t}`" for c, t in d["coerced_types"].items()]
         lines.append("")
 
+    if d["fill_constant_incompatible"]:
+        lines += ["## Fill constant skipped (incompatible with column type)", ""]
+        lines += [f"- `{c}`" for c in d["fill_constant_incompatible"]]
+        lines.append("")
+
     # Show only columns that actually had missing values, to keep it readable.
     missing_rows = [
         (col, before, d["missing_after"].get(col, 0))
